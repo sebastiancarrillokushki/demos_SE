@@ -21,10 +21,10 @@ st.markdown("""
             border-radius: 10px;
         }
         h1, h2, h3 {
-            color: #0066CC;
+            color: #023365;
         }
         .stButton>button {
-            background-color: #0066CC;
+            background-color: #023365;
             color: white;
             border-radius: 8px;
         }
