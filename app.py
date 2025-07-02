@@ -435,11 +435,3 @@ if st.session_state.get("transaccion_cancelada"):
         st.session_state["mostrar_boton_nueva_trx"] = True
         st.rerun()
 
-# Refrescar automáticamente la sección de estado si hay una referencia activa
-def refrescar_estado_si_referencia():
-    if "ultima_referencia" in st.session_state:
-        st.error("Ingresa en refrescar_estado_si_referencia:")
-        st_autorefresh(interval=3000, limit=20, key="refresco_estado_webhook")
-
-
-refrescar_estado_si_referencia()
