@@ -120,8 +120,11 @@ def inicializar_estado():
 def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
     intentos = 0
     while intentos < 10:
-        if os.path.exists(RUTA_ESTADO_TRX):
-            return  # Webhook llegó, se rompe el ciclo
+        # --- NUEVO: Verificar si el webhook ya llegó consultando el endpoint remoto ---
+        estado_remoto = obtener_estado_remoto()
+        if estado_remoto and estado_remoto.get("uniqueReference") == referencia:
+            # Webhook llegó, se rompe el ciclo
+            return
 
         time.sleep(30)
         intentos += 1
@@ -143,7 +146,6 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
             st.code(json.dumps(response.json(), indent=2), language="json")
 
             status = response.json().get("status", "").lower()
-            
             if status in ["cancelled", "canceled"]:
                 with open("respuesta_api_get_estatus.json", "w") as f:
                     try:
@@ -157,7 +159,6 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
                     if key != "transaccion_cancelada":
                         del st.session_state[key]
                 st.session_state["transaccion_cancelada"] = True
-                
                 st.rerun()
             else:
                 if status in ["Approved", "Approve"]:
