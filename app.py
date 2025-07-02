@@ -167,7 +167,7 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
         except Exception as e:
             st.error(f"❌ Error consultando el estado: {e}")
 
-WEBHOOK_BASE_URL = "https://webhook-server-ctapi.onrender.com"
+WEBHOOK_BASE_URL = "https://webhook-server-ctapi.onrender.com/webhook"
 
 def obtener_estado_remoto():
     try:
