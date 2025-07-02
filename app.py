@@ -190,11 +190,15 @@ def obtener_devolucion_remota():
 
 def mostrar_estado_webhook():
     estado = obtener_estado_remoto()
+    referencia_esperada = st.session_state.get("ultima_referencia")
+    referencia_recibida = estado.get("uniqueReference") if estado else None
+    st.write("Referencia esperada:", referencia_esperada)
+    st.write("Referencia recibida del webhook:", referencia_recibida)
     st.write("Estado recibido del webhook:", estado)  # DEBUG: Mostrar el JSON recibido
     if estado:
         result = estado.get("result") or estado.get("status")
         ref = estado.get("uniqueReference", "[sin referencia]")
-        if ref == st.session_state.get("ultima_referencia"):
+        if ref == referencia_esperada:
             st.subheader("📦 Webhook recibido:")
             st.code(json.dumps(estado, indent=2), language="json")
             st.subheader("📊 Resultado del pago:")
