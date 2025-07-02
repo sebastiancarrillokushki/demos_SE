@@ -198,13 +198,6 @@ def mostrar_estado_webhook():
             st.subheader("📊 Resultado del pago:")
             if result and result.lower() in ["aprobada", "approved"]:
                 st.success("✅ ¡Pago aprobado correctamente!")
-                if st.session_state.get("temporizador_mostrado") != ref:
-                    st.session_state["temporizador_mostrado"] = ref
-                    st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
-                    countdown_placeholder = st.empty()
-                    for i in range(60, 0, -1):
-                        countdown_placeholder.info(f"⏳ {i} segundos restantes")
-                        time.sleep(1)
             elif result and result.lower() in ["rechazada", "rechazadaprosa", "declined"]:
                 st.error("❌ El pago fue rechazado.")
             elif result and result.lower() == "cancelled":
@@ -390,12 +383,26 @@ if "ultima_referencia" in st.session_state:
     verificar_estado_api_si_no_llega_webhook(pais, st.session_state["ultima_referencia"], api_key)
 
     estado = obtener_estado_remoto()
-    if estado and estado.get("uniqueReference") == st.session_state.get("ultima_referencia"):
+    webhook_recibido = estado and estado.get("uniqueReference") == st.session_state.get("ultima_referencia")
+    if webhook_recibido:
+        # Mostrar solo el webhook, iniciar timer y no hacer más autorefresh después
         mostrar_estado_webhook()
         mostrar_webhook_devolucion()
+        if st.session_state.get("temporizador_mostrado") != st.session_state["ultima_referencia"]:
+            st.session_state["temporizador_mostrado"] = st.session_state["ultima_referencia"]
+            st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
+            countdown_placeholder = st.empty()
+            for i in range(60, 0, -1):
+                countdown_placeholder.info(f"⏳ {i} segundos restantes")
+                time.sleep(1)
+            # Al terminar el timer, no hacer más autorefresh
+            st.session_state["webhook_finalizado"] = True
+        # Al terminar el timer, no hacer más autorefresh
+        st.session_state["webhook_finalizado"] = True
     else:
-        st_autorefresh(interval=3000, limit=10, key="espera_webhook")
-        st.info("⏳ Procesando transacción... esperando confirmación del pago.")
+        if not st.session_state.get("webhook_finalizado"):
+            st_autorefresh(interval=3000, limit=10, key="espera_webhook")
+            st.info("⏳ Procesando transacción... esperando confirmación del pago.")
 
 # Botón para nueva transacción
 if "ultima_referencia" in st.session_state:
