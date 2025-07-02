@@ -111,6 +111,15 @@ def inicializar_estado():
     if "transaccion_cancelada" not in st.session_state:
         st.session_state["transaccion_cancelada"] = False
 
+def resetear_productos():
+    """Función para resetear valores de productos y propina"""
+    productos = ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]
+    for producto in productos:
+        if producto not in st.session_state:
+            st.session_state[producto] = 0
+    if "propina" not in st.session_state:
+        st.session_state["propina"] = 0
+
 def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
     intentos = 0
     while intentos < 10:
@@ -302,6 +311,8 @@ if pais != "Seleccionar...":
 
         }[pais]
 
+        # Inicializar valores de productos antes de crear widgets
+        resetear_productos()
 
         imagenes_productos = {
                 producto: f"Imagenes/{producto}.png" for producto in productos.keys()
@@ -420,9 +431,13 @@ if "ultima_referencia" in st.session_state:
         for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
             if clave in st.session_state:
                 del st.session_state[clave]
-        for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
-            st.session_state[producto] = 0  # Reiniciar a 0 explícitamente
-        st.session_state["propina"] = 0  # Reiniciar propina a 0
+        # Limpiar productos y propina sin modificar directamente
+        productos = ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]
+        for producto in productos:
+            if producto in st.session_state:
+                del st.session_state[producto]
+        if "propina" in st.session_state:
+            del st.session_state["propina"]
         st.rerun()
 
 if st.session_state.get("transaccion_cancelada"):
@@ -437,9 +452,6 @@ if st.session_state.get("transaccion_cancelada"):
         for key in keys_to_clear:
             if key != "mostrar_boton_nueva_trx":
                 del st.session_state[key]
-        for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
-            st.session_state[producto] = 0  # Reiniciar a 0 explícitamente
-        st.session_state["propina"] = 0  # Reiniciar propina a 0
         st.session_state["mostrar_boton_nueva_trx"] = True
         st.rerun()
 
