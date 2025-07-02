@@ -38,14 +38,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-RUTA_ESTADO_TRX = os.path.abspath("estado_trx.json")
-RUTA_DEVOLUCION = os.path.abspath("devolucion_trx.json")
-
-st.title("🍽️ Kushki's Restaurant")
-
-# === Utilidades ===
 def limpiar_archivos_estado():
-    for archivo in [RUTA_ESTADO_TRX, RUTA_DEVOLUCION, "payload_enviado.json", "payload_cancelacion.json", "respuesta_pago.json"]:
+    for archivo in ["payload_enviado.json", "payload_cancelacion.json", "respuesta_pago.json"]:
         if os.path.exists(archivo):
             os.remove(archivo)
 
@@ -394,14 +388,14 @@ if "ultima_referencia" in st.session_state:
     mostrar_archivo_json("📤 Payload enviado a Cloud Terminal API", "payload_enviado.json")
     mostrar_archivo_json("📨 Respuesta de la API", "respuesta_pago.json")
     verificar_estado_api_si_no_llega_webhook(pais, st.session_state["ultima_referencia"], api_key)
-    
 
-    if not os.path.exists(RUTA_ESTADO_TRX):
-        st_autorefresh(interval=3000, limit=10, key="espera_webhook")
-        st.info("⏳ Procesando transacción... esperando confirmación del pago.")
-    else:
+    estado = obtener_estado_remoto()
+    if estado and estado.get("uniqueReference") == st.session_state.get("ultima_referencia"):
         mostrar_estado_webhook()
         mostrar_webhook_devolucion()
+    else:
+        st_autorefresh(interval=3000, limit=10, key="espera_webhook")
+        st.info("⏳ Procesando transacción... esperando confirmación del pago.")
 
 # Botón para nueva transacción
 if "ultima_referencia" in st.session_state:
