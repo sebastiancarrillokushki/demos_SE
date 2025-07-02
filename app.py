@@ -43,21 +43,21 @@ def limpiar_archivos_estado():
         if os.path.exists(archivo):
             os.remove(archivo)
 
-def construir_payload_mexico(serial, total, reference, propina):
+def construir_payload_mexico(serial, total, reference, propina, show_notification, auto_payment_enabled, enable_dialog_tip):
     payload = {
         "serialNumber": serial,
         "amount": total,
         "identifier": reference,
         "uniqueReference": reference,
         "description": "Compra en restaurante",
-        "showNotification": False,
-        "ttl": 60,
+        "showNotification": show_notification,
+        "ttl": 40,
         "msi": 0,
         "deviceToken": "58e9a981",
         "extras": {
-            "autoPaymentEnabled": True,
+            "autoPaymentEnabled": auto_payment_enabled,
             "timerFinishTRX": 10,
-            "enableDialogTip": False
+            "enableDialogTip": enable_dialog_tip
         }
     }
     if propina > 0:
@@ -355,7 +355,11 @@ if pais != "Seleccionar...":
         with input_col:
             propina = st.number_input("Propina", min_value=0, step=1, key="propina", label_visibility="collapsed")
 
-
+        # Mostrar checkboxes para México antes del botón de pago
+        if pais == "México":
+            show_notification = st.checkbox("showNotification", value=False, key="showNotification")
+            auto_payment_enabled = st.checkbox("autoPaymentEnabled", value=True, key="autoPaymentEnabled")
+            enable_dialog_tip = st.checkbox("enableDialogTip", value=False, key="enableDialogTip")
 
         if carrito:
             st.subheader("🧾 Resumen del pedido:")
@@ -374,7 +378,10 @@ if pais != "Seleccionar...":
                     limpiar_archivos_estado()
 
                     if pais == "México":
-                        payload = construir_payload_mexico(serial_number, total, st.session_state["ultima_referencia"], propina)
+                        payload = construir_payload_mexico(
+                            serial_number, total, st.session_state["ultima_referencia"], propina,
+                            show_notification, auto_payment_enabled, enable_dialog_tip
+                        )
                         headers = {"X-BP-AUTH": api_key, "Content-Type": "application/json"}
                         url = "https://kushkicollect.billpocket.dev/v2/push-notifications"
                     else:
@@ -410,12 +417,12 @@ if "ultima_referencia" in st.session_state:
     st.divider()
     if st.button("🧾 Nueva transacción"):
         limpiar_archivos_estado()
-        for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key"]:
+        for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
             if clave in st.session_state:
                 del st.session_state[clave]
         for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
-            if producto in st.session_state:
-                del st.session_state[producto]
+            st.session_state[producto] = 0
+        st.session_state["propina"] = 0
         st.rerun()
 
 if st.session_state.get("transaccion_cancelada"):
