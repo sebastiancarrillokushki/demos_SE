@@ -199,19 +199,20 @@ def mostrar_estado_webhook():
             st.subheader("📊 Resultado del pago:")
             if result and result.lower() in ["aprobada", "approved"]:
                 st.success("✅ ¡Pago aprobado correctamente!")
-                # Mostrar botón de nueva transacción arriba SOLO antes/durante el timer
+                # Botón de nueva transacción SIEMPRE visible
+                if st.button("🧾 Nueva transacción"):
+                    limpiar_archivos_estado()
+                    for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
+                        if clave in st.session_state:
+                            del st.session_state[clave]
+                    for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
+                        if producto in st.session_state:
+                            del st.session_state[producto]
+                    if "propina" in st.session_state:
+                        del st.session_state["propina"]
+                    st.rerun()
+                # Timer solo si no ha finalizado
                 if not st.session_state.get("timer_finalizado"):
-                    if st.button("🧾 Nueva transacción", key="nueva_transaccion_arriba"):
-                        limpiar_archivos_estado()
-                        for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
-                            if clave in st.session_state:
-                                del st.session_state[clave]
-                        for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
-                            if producto in st.session_state:
-                                del st.session_state[producto]
-                        if "propina" in st.session_state:
-                            del st.session_state["propina"]
-                        st.rerun()
                     st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
                     countdown_placeholder = st.empty()
                     for i in range(60, 0, -1):
@@ -219,23 +220,6 @@ def mostrar_estado_webhook():
                         time.sleep(1)
                     st.session_state["timer_finalizado"] = True
                     st.rerun()
-                # Después del timer, solo mostrar botón de devolución
-                if st.session_state.get("timer_finalizado"):
-                    if st.button("📤 Solicitar devolución"):
-                        with st.spinner("Enviando solicitud de devolución..."):
-                            payload = {"uniqueReference": ref}
-                            with open("payload_cancelacion.json", "w") as f:
-                                json.dump(payload, f)
-                            headers = {
-                                "X-BP-AUTH": st.session_state.get("api_key", ""),
-                                "Content-Type": "application/json"
-                            }
-                            url = "https://kushkicollect.billpocket.dev/refund"
-                            response = requests.post(url, json=payload, headers=headers)
-                            st.subheader("📦 Payload de devolución enviado")
-                            st.code(json.dumps(payload, indent=2), language="json")
-                            st.subheader("📨 Respuesta de la API")
-                            st.code(json.dumps(response.json(), indent=2), language="json")
             elif result and result.lower() in ["rechazada", "rechazadaprosa", "declined"]:
                 st.error("❌ El pago fue rechazado.")
             elif result and result.lower() == "cancelled":
@@ -243,52 +227,59 @@ def mostrar_estado_webhook():
             else:
                 st.info(f"ℹ️ Estado del pago: {result or 'desconocido'}")
             st.subheader("💸 Solicitud de devolución")
+            # Botón solo si el timer terminó
+            if st.session_state.get("timer_finalizado"):
+                if st.button("📤 Solicitar devolución"):
+                    with st.spinner("Enviando solicitud de devolución..."):
+                        payload = {"uniqueReference": ref}
+                        with open("payload_cancelacion.json", "w") as f:
+                            json.dump(payload, f)
+                        headers = {
+                            "X-BP-AUTH": st.session_state.get("api_key", ""),
+                            "Content-Type": "application/json"
+                        }
+                        url = "https://kushkicollect.billpocket.dev/refund"
+                        response = requests.post(url, json=payload, headers=headers)
+                        st.subheader("📦 Payload de devolución enviado")
+                        st.code(json.dumps(payload, indent=2), language="json")
+                        st.subheader("📨 Respuesta de la API")
+                        st.code(json.dumps(response.json(), indent=2), language="json")
 
-# Mostrar resultados después del envío
-if "ultima_referencia" in st.session_state:
-    mostrar_archivo_json("📤 Payload enviado a Cloud Terminal API", "payload_enviado.json")
-    mostrar_archivo_json("📨 Respuesta de la API", "respuesta_pago.json")
-    verificar_estado_api_si_no_llega_webhook(pais, st.session_state["ultima_referencia"], api_key)
+def mostrar_webhook_devolucion():
+    devolucion = obtener_devolucion_remota()
+    if devolucion:
+        result = devolucion.get("result") or devolucion.get("status")
+        ref = devolucion.get("uniqueReference", "[sin referencia]")
+        if ref == st.session_state.get("ultima_referencia"):
+            st.subheader("📦 Webhook recibido (devolución)")
+            st.code(json.dumps(devolucion, indent=2), language="json")
+            st.subheader("📊 Resultado de la devolución:")
+            if result and result.lower() in ["aprobada", "approved"]:
+                st.success("✅ ¡Devolución procesada correctamente!")
+            elif result and result.lower() in ["rechazada", "declined"]:
+                st.error("❌ La devolución fue rechazada.")
+            else:
+                st.info(f"ℹ️ Estado: {result or 'desconocido'}")
 
-    estado = obtener_estado_remoto()
-    webhook_recibido = estado and estado.get("uniqueReference") == st.session_state.get("ultima_referencia")
-    timer_finalizado = st.session_state.get("timer_finalizado")
-    if webhook_recibido:
-        mostrar_estado_webhook()
-        mostrar_webhook_devolucion()
-    else:
-        if not timer_finalizado:
-            st_autorefresh(interval=3000, limit=10, key="espera_webhook")
-            st.info("⏳ Procesando transacción... esperando confirmación del pago.")
-    # Botón para nueva transacción (en la parte inferior, solo tras el timer)
-    if timer_finalizado:
-        st.divider()
-        if st.button("🧾 Nueva transacción", key="nueva_transaccion_footer"):
-            limpiar_archivos_estado()
-            for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
-                if clave in st.session_state:
-                    del st.session_state[clave]
-            for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
-                if producto in st.session_state:
-                    del st.session_state[producto]
-            if "propina" in st.session_state:
-                del st.session_state["propina"]
-            st.rerun()
 
-if st.session_state.get("transaccion_cancelada"):
-    mostrar_archivo_json("📤 Payload enviado a Cloud Terminal API", "payload_enviado.json")
-    mostrar_archivo_json("📨 Respuesta de la API", "respuesta_pago.json")
-    mostrar_archivo_json("🔎 Última verificación de estado (API)", "respuesta_api_get_estatus.json")
-    st.divider()
-    st.warning("🛑 Transacción cancelada en la terminal. Puedes iniciar una nueva.")
-    if st.button("🧾 Nueva transacción"):
-        limpiar_archivos_estado()
-        keys_to_clear = list(st.session_state.keys())
-        for key in keys_to_clear:
-            if key != "mostrar_boton_nueva_trx":
-                del st.session_state[key]
-        st.session_state["mostrar_boton_nueva_trx"] = True
-        st.rerun()
+# === Interfaz de configuración inicial ===
+st.subheader("🌎 Selecciona el país de operación")
+pais = st.selectbox("País", ["Seleccionar...", "México", "Chile"])
+
+ingenieros_config = {
+    "México": {
+        "Juanse": {
+            "serial": "TJ54239M21196",
+            "api_key": "78197c2d035dc6f8297e8fdfc8ebbabfb8f2ab209ce3ce1d19a283e3786ae975"
+        }
+    },
+    "Chile": {
+        "Juanse": {
+            "serial": "TJ71246J20345",
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+        }
+    }
+}
 
 if pais != "Seleccionar...":
     st.subheader("👤 Selecciona el ingeniero de preventa")
@@ -318,14 +309,19 @@ if pais != "Seleccionar...":
                 "Cerveza": 3500,
                 "Agua": 1200
             }
+            # Cargar imágenes locales
+            
+
         }[pais]
 
+
         imagenes_productos = {
-            producto: f"Imagenes/{producto}.png" for producto in productos.keys()
-        }
+                producto: f"Imagenes/{producto}.png" for producto in productos.keys()
+            }
 
         st.subheader("🛒 Menú")
         carrito = {}
+        
         productos_lista = list(productos.items())
         for fila in range(0, len(productos_lista), 3):
             cols = st.columns(3)
@@ -351,6 +347,26 @@ if pais != "Seleccionar...":
                         if cantidad > 0:
                             carrito[producto] = (cantidad, precio)
 
+        # Tarjeta visual de propina dentro de columna central alineada con el resto
+        fila_propina = st.columns(3)
+        with fila_propina[0]:
+            st.empty()
+        with fila_propina[1]:
+            st.markdown(f"""
+                <div style='text-align: center; padding: 15px; height: 240px; border-radius: 10px; background-color: #f8f9fa; box-shadow: 1px 1px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between;'>
+                    <img src='data:image/png;base64,{base64.b64encode(open(f"Imagenes/Propina.png","rb").read()).decode()}' style='height: 80px; object-fit: contain; margin: auto;' />
+                    <div style='font-weight: bold; font-size: 16px;'>Propina {simbolo_moneda}</div>
+                    <div style='margin-top: 4px;'>Opcional</div>
+                </div>
+            """, unsafe_allow_html=True)
+        with fila_propina[2]:
+            st.empty()
+
+        # Input centrado abajo
+        espacio_izq2, input_col, espacio_der2 = st.columns([3, 2, 3])
+        with input_col:
+            propina = st.number_input("Propina", min_value=0, step=1, key="propina", label_visibility="collapsed")
+
         # Mostrar checkboxes para México antes del botón de pago
         if pais == "México":
             show_notification = st.checkbox("showNotification", value=False, key="showNotification")
@@ -358,10 +374,21 @@ if pais != "Seleccionar...":
             enable_dialog_tip = st.checkbox("enableDialogTip", value=False, key="enableDialogTip")
 
         if carrito:
+            st.subheader("🧾 Resumen del pedido:")
+            total = sum(c * p for (c, p) in carrito.values())
+            for producto, (cantidad, precio) in carrito.items():
+                st.write(f"{producto} x {cantidad} = {cantidad * precio} {simbolo_moneda}")
+            if propina > 0:
+                st.write(f"Propina: {propina} {simbolo_moneda}")
+            st.write(f"**Total a pagar: {total + propina} {simbolo_moneda}**")
+
+            inicializar_estado()
+
             if not st.session_state["pago_enviado"]:
                 if st.button("📲 Enviar a terminal para pagar"):
                     st.session_state["ultima_referencia"] = uuid.uuid4().hex
                     limpiar_archivos_estado()
+
                     if pais == "México":
                         payload = construir_payload_mexico(
                             serial_number, total, st.session_state["ultima_referencia"], propina,
@@ -373,38 +400,57 @@ if pais != "Seleccionar...":
                         payload = construir_payload_chile(serial_number, total + propina, st.session_state["ultima_referencia"])
                         headers = {"X-API-Key": api_key, "Content-Type": "application/json", "User-Agent": "PostmanRuntime/7.32.3"}
                         url = "https://integrations.payment.haulmer.com/RemotePayment/v2/Create"
+
                     response = enviar_pago(url, headers, payload)
                     if response:
                         st.session_state["pago_enviado"] = True
                         st.session_state["api_key"] = api_key
                         st.success("✅ Solicitud enviada correctamente. Esperando webhook...")
 
-        # --- BLOQUE DE RESULTADOS DESPUÉS DEL ENVÍO ---
-        if "ultima_referencia" in st.session_state:
-            mostrar_archivo_json("📤 Payload enviado a Cloud Terminal API", "payload_enviado.json")
-            mostrar_archivo_json("📨 Respuesta de la API", "respuesta_pago.json")
-            verificar_estado_api_si_no_llega_webhook(pais, st.session_state["ultima_referencia"], api_key)
-            estado = obtener_estado_remoto()
-            webhook_recibido = estado and estado.get("uniqueReference") == st.session_state.get("ultima_referencia")
-            timer_finalizado = st.session_state.get("timer_finalizado")
-            if webhook_recibido:
-                mostrar_estado_webhook()
-                mostrar_webhook_devolucion()
-            else:
-                if not timer_finalizado:
-                    st_autorefresh(interval=3000, limit=10, key="espera_webhook")
-                    st.info("⏳ Procesando transacción... esperando confirmación del pago.")
-            if timer_finalizado:
-                st.divider()
-                if st.button("🧾 Nueva transacción", key="nueva_transaccion_footer"):
-                    limpiar_archivos_estado()
-                    for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
-                        if clave in st.session_state:
-                            del st.session_state[clave]
-                    for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
-                        if producto in st.session_state:
-                            del st.session_state[producto]
-                    if "propina" in st.session_state:
-                        del st.session_state["propina"]
-                    st.rerun()
+# Mostrar resultados después del envío
+if "ultima_referencia" in st.session_state:
+    mostrar_archivo_json("📤 Payload enviado a Cloud Terminal API", "payload_enviado.json")
+    mostrar_archivo_json("📨 Respuesta de la API", "respuesta_pago.json")
+    verificar_estado_api_si_no_llega_webhook(pais, st.session_state["ultima_referencia"], api_key)
+
+    estado = obtener_estado_remoto()
+    webhook_recibido = estado and estado.get("uniqueReference") == st.session_state.get("ultima_referencia")
+    timer_finalizado = st.session_state.get("timer_finalizado")
+    if webhook_recibido:
+        mostrar_estado_webhook()
+        mostrar_webhook_devolucion()
+    else:
+        if not timer_finalizado:
+            st_autorefresh(interval=3000, limit=10, key="espera_webhook")
+            st.info("⏳ Procesando transacción... esperando confirmación del pago.")
+
+# Botón para nueva transacción (en la parte inferior, fuera de mostrar_estado_webhook)
+if "ultima_referencia" in st.session_state:
+    st.divider()
+    if st.button("🧾 Nueva transacción"):
+        limpiar_archivos_estado()
+        for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
+            if clave in st.session_state:
+                del st.session_state[clave]
+        for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
+            if producto in st.session_state:
+                del st.session_state[producto]
+        if "propina" in st.session_state:
+            del st.session_state["propina"]
+        st.rerun()
+
+if st.session_state.get("transaccion_cancelada"):
+    mostrar_archivo_json("📤 Payload enviado a Cloud Terminal API", "payload_enviado.json")
+    mostrar_archivo_json("📨 Respuesta de la API", "respuesta_pago.json")
+    mostrar_archivo_json("🔎 Última verificación de estado (API)", "respuesta_api_get_estatus.json")
+    st.divider()
+    st.warning("🛑 Transacción cancelada en la terminal. Puedes iniciar una nueva.")
+    if st.button("🧾 Nueva transacción"):
+        limpiar_archivos_estado()
+        keys_to_clear = list(st.session_state.keys())
+        for key in keys_to_clear:
+            if key != "mostrar_boton_nueva_trx":
+                del st.session_state[key]
+        st.session_state["mostrar_boton_nueva_trx"] = True
+        st.rerun()
 
