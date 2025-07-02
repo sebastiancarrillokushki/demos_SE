@@ -167,7 +167,7 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
         except Exception as e:
             st.error(f"❌ Error consultando el estado: {e}")
 
-WEBHOOK_BASE_URL = "https://webhook-server-ctapi.onrender.com/webhook"
+WEBHOOK_BASE_URL = "https://webhook-server-ctapi.onrender.com"
 
 def obtener_estado_remoto():
     try:
@@ -189,6 +189,7 @@ def obtener_devolucion_remota():
 
 def mostrar_estado_webhook():
     estado = obtener_estado_remoto()
+    st.write("Estado recibido del webhook:", estado)  # DEBUG: Mostrar el JSON recibido
     if estado:
         result = estado.get("result") or estado.get("status")
         ref = estado.get("uniqueReference", "[sin referencia]")
@@ -424,3 +425,10 @@ if st.session_state.get("transaccion_cancelada"):
                 del st.session_state[key]
         st.session_state["mostrar_boton_nueva_trx"] = True
         st.rerun()
+
+# Refrescar automáticamente la sección de estado si hay una referencia activa
+def refrescar_estado_si_referencia():
+    if "ultima_referencia" in st.session_state:
+        st_autorefresh(interval=3000, limit=20, key="refresco_estado_webhook")
+
+refrescar_estado_si_referencia()
