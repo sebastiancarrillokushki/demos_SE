@@ -186,18 +186,28 @@ def mostrar_estado_webhook():
     estado = obtener_estado_remoto()
     referencia_esperada = st.session_state.get("ultima_referencia")
     referencia_recibida = estado.get("uniqueReference") if estado else None
-    st.write("Referencia esperada:", referencia_esperada)
-    st.write("Referencia recibida del webhook:", referencia_recibida)
-    st.write("Estado recibido del webhook:", estado)  # DEBUG: Mostrar el JSON recibido
     if estado:
         result = estado.get("result") or estado.get("status")
         ref = estado.get("uniqueReference", "[sin referencia]")
         if ref == referencia_esperada:
+            # Si el webhook llega por primera vez, forzar recarga para limpiar estado
+            if not st.session_state.get("webhook_mostrado"):
+                st.session_state["webhook_mostrado"] = True
+                st.rerun()
             st.subheader("📦 Webhook recibido:")
             st.code(json.dumps(estado, indent=2), language="json")
             st.subheader("📊 Resultado del pago:")
             if result and result.lower() in ["aprobada", "approved"]:
                 st.success("✅ ¡Pago aprobado correctamente!")
+                # Timer solo si no ha finalizado
+                if not st.session_state.get("timer_finalizado"):
+                    st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
+                    countdown_placeholder = st.empty()
+                    for i in range(60, 0, -1):
+                        countdown_placeholder.info(f"⏳ {i} segundos restantes")
+                        time.sleep(1)
+                    st.session_state["timer_finalizado"] = True
+                    st.rerun()
             elif result and result.lower() in ["rechazada", "rechazadaprosa", "declined"]:
                 st.error("❌ El pago fue rechazado.")
             elif result and result.lower() == "cancelled":
@@ -205,21 +215,23 @@ def mostrar_estado_webhook():
             else:
                 st.info(f"ℹ️ Estado del pago: {result or 'desconocido'}")
             st.subheader("💸 Solicitud de devolución")
-            if st.button("📤 Solicitar devolución"):
-                with st.spinner("Enviando solicitud de devolución..."):
-                    payload = {"uniqueReference": ref}
-                    with open("payload_cancelacion.json", "w") as f:
-                        json.dump(payload, f)
-                    headers = {
-                        "X-BP-AUTH": st.session_state.get("api_key", ""),
-                        "Content-Type": "application/json"
-                    }
-                    url = "https://kushkicollect.billpocket.dev/refund"
-                    response = requests.post(url, json=payload, headers=headers)
-                    st.subheader("📦 Payload de devolución enviado")
-                    st.code(json.dumps(payload, indent=2), language="json")
-                    st.subheader("📨 Respuesta de la API")
-                    st.code(json.dumps(response.json(), indent=2), language="json")
+            # Botón solo si el timer terminó
+            if st.session_state.get("timer_finalizado"):
+                if st.button("📤 Solicitar devolución"):
+                    with st.spinner("Enviando solicitud de devolución..."):
+                        payload = {"uniqueReference": ref}
+                        with open("payload_cancelacion.json", "w") as f:
+                            json.dump(payload, f)
+                        headers = {
+                            "X-BP-AUTH": st.session_state.get("api_key", ""),
+                            "Content-Type": "application/json"
+                        }
+                        url = "https://kushkicollect.billpocket.dev/refund"
+                        response = requests.post(url, json=payload, headers=headers)
+                        st.subheader("📦 Payload de devolución enviado")
+                        st.code(json.dumps(payload, indent=2), language="json")
+                        st.subheader("📨 Respuesta de la API")
+                        st.code(json.dumps(response.json(), indent=2), language="json")
 
 def mostrar_webhook_devolucion():
     devolucion = obtener_devolucion_remota()
