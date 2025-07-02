@@ -51,7 +51,7 @@ def construir_payload_mexico(serial, total, reference, propina, show_notificatio
         "uniqueReference": reference,
         "description": "Compra en restaurante",
         "showNotification": show_notification,
-        "ttl": 40,
+        "ttl": 60,
         "msi": 0,
         "deviceToken": "58e9a981",
         "extras": {
