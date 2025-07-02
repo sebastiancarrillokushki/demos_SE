@@ -167,20 +167,36 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
         except Exception as e:
             st.error(f"❌ Error consultando el estado: {e}")
 
-def mostrar_estado_webhook():
-    if os.path.exists(RUTA_ESTADO_TRX):
-        with open(RUTA_ESTADO_TRX, "r") as f:
-            estado = json.load(f)
+WEBHOOK_BASE_URL = "https://webhook-server-ctapi.onrender.com"
 
+def obtener_estado_remoto():
+    try:
+        response = requests.get(f"{WEBHOOK_BASE_URL}/get-estado", timeout=5)
+        if response.status_code == 200:
+            return response.json()
+    except Exception as e:
+        st.error(f"Error consultando estado remoto: {e}")
+    return None
+
+def obtener_devolucion_remota():
+    try:
+        response = requests.get(f"{WEBHOOK_BASE_URL}/get-devolucion", timeout=5)
+        if response.status_code == 200:
+            return response.json()
+    except Exception as e:
+        st.error(f"Error consultando devolución remota: {e}")
+    return None
+
+def mostrar_estado_webhook():
+    estado = obtener_estado_remoto()
+    if estado:
         result = estado.get("result") or estado.get("status")
         ref = estado.get("uniqueReference", "[sin referencia]")
-
         if ref == st.session_state.get("ultima_referencia"):
             st.subheader("📦 Webhook recibido:")
             st.code(json.dumps(estado, indent=2), language="json")
-
             st.subheader("📊 Resultado del pago:")
-            if result.lower() in ["aprobada", "approved"]:
+            if result and result.lower() in ["aprobada", "approved"]:
                 st.success("✅ ¡Pago aprobado correctamente!")
                 if st.session_state.get("temporizador_mostrado") != ref:
                     st.session_state["temporizador_mostrado"] = ref
@@ -189,20 +205,18 @@ def mostrar_estado_webhook():
                     for i in range(60, 0, -1):
                         countdown_placeholder.info(f"⏳ {i} segundos restantes")
                         time.sleep(1)
-            elif result.lower() in ["rechazada", "rechazadaProsa", "declined"]:
+            elif result and result.lower() in ["rechazada", "rechazadaprosa", "declined"]:
                 st.error("❌ El pago fue rechazado.")
-            elif result.lower() == "cancelled":
+            elif result and result.lower() == "cancelled":
                 st.warning("⚠️ El cliente canceló el pago.")
             else:
                 st.info(f"ℹ️ Estado del pago: {result or 'desconocido'}")
-
             st.subheader("💸 Solicitud de devolución")
             if st.button("📤 Solicitar devolución"):
                 with st.spinner("Enviando solicitud de devolución..."):
                     payload = {"uniqueReference": ref}
                     with open("payload_cancelacion.json", "w") as f:
                         json.dump(payload, f)
-
                     headers = {
                         "X-BP-AUTH": st.session_state.get("api_key", ""),
                         "Content-Type": "application/json"
@@ -215,21 +229,17 @@ def mostrar_estado_webhook():
                     st.code(json.dumps(response.json(), indent=2), language="json")
 
 def mostrar_webhook_devolucion():
-    if os.path.exists(RUTA_DEVOLUCION):
-        with open(RUTA_DEVOLUCION, "r") as f:
-            devolucion = json.load(f)
-
+    devolucion = obtener_devolucion_remota()
+    if devolucion:
         result = devolucion.get("result") or devolucion.get("status")
         ref = devolucion.get("uniqueReference", "[sin referencia]")
-
         if ref == st.session_state.get("ultima_referencia"):
             st.subheader("📦 Webhook recibido (devolución)")
             st.code(json.dumps(devolucion, indent=2), language="json")
-
             st.subheader("📊 Resultado de la devolución:")
-            if result.lower() in ["aprobada", "approved"]:
+            if result and result.lower() in ["aprobada", "approved"]:
                 st.success("✅ ¡Devolución procesada correctamente!")
-            elif result.lower() in ["rechazada", "declined"]:
+            elif result and result.lower() in ["rechazada", "declined"]:
                 st.error("❌ La devolución fue rechazada.")
             else:
                 st.info(f"ℹ️ Estado: {result or 'desconocido'}")
