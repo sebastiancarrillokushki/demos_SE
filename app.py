@@ -199,18 +199,6 @@ def mostrar_estado_webhook():
             st.subheader("📊 Resultado del pago:")
             if result and result.lower() in ["aprobada", "approved"]:
                 st.success("✅ ¡Pago aprobado correctamente!")
-                # Botón de nueva transacción SIEMPRE visible
-                if st.button("🧾 Nueva transacción"):
-                    limpiar_archivos_estado()
-                    for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
-                        if clave in st.session_state:
-                            del st.session_state[clave]
-                    for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
-                        if producto in st.session_state:
-                            del st.session_state[producto]
-                    if "propina" in st.session_state:
-                        del st.session_state["propina"]
-                    st.rerun()
                 # Timer solo si no ha finalizado
                 if not st.session_state.get("timer_finalizado"):
                     st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
@@ -227,7 +215,7 @@ def mostrar_estado_webhook():
             else:
                 st.info(f"ℹ️ Estado del pago: {result or 'desconocido'}")
             st.subheader("💸 Solicitud de devolución")
-            # Botón solo si el timer terminó
+            # Botón solo si el timer terminó (NO antes)
             if st.session_state.get("timer_finalizado"):
                 if st.button("📤 Solicitar devolución"):
                     with st.spinner("Enviando solicitud de devolución..."):
