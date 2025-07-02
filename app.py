@@ -421,10 +421,8 @@ if "ultima_referencia" in st.session_state:
             if clave in st.session_state:
                 del st.session_state[clave]
         for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
-            if producto in st.session_state:
-                del st.session_state[producto]
-        if "propina" in st.session_state:
-            del st.session_state["propina"]
+            st.session_state[producto] = 0  # Reiniciar a 0 explícitamente
+        st.session_state["propina"] = 0  # Reiniciar propina a 0
         st.rerun()
 
 if st.session_state.get("transaccion_cancelada"):
@@ -439,6 +437,9 @@ if st.session_state.get("transaccion_cancelada"):
         for key in keys_to_clear:
             if key != "mostrar_boton_nueva_trx":
                 del st.session_state[key]
+        for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
+            st.session_state[producto] = 0  # Reiniciar a 0 explícitamente
+        st.session_state["propina"] = 0  # Reiniciar propina a 0
         st.session_state["mostrar_boton_nueva_trx"] = True
         st.rerun()
 
