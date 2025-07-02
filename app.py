@@ -326,7 +326,7 @@ if pais != "Seleccionar...":
                         except FileNotFoundError:
                             st.warning(f"Imagen no encontrada para {producto}")
                         cantidad = st.number_input(
-                            label="", key=producto, min_value=0, max_value=10, step=1
+                            label=f"Cantidad de {producto}", key=producto, min_value=0, max_value=10, step=1, label_visibility="collapsed"
                         )
                         if cantidad > 0:
                             carrito[producto] = (cantidad, precio)
@@ -349,7 +349,7 @@ if pais != "Seleccionar...":
         # Input centrado abajo
         espacio_izq2, input_col, espacio_der2 = st.columns([3, 2, 3])
         with input_col:
-            propina = st.number_input(" ", min_value=0, step=1, key="propina")
+            propina = st.number_input("Propina", min_value=0, step=1, key="propina", label_visibility="collapsed")
 
 
 
