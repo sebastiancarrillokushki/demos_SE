@@ -401,7 +401,9 @@ if "ultima_referencia" in st.session_state:
         mostrar_estado_webhook()
         mostrar_webhook_devolucion()
     else:
+        st.error("Ingresa en elses webhook_recibido:")
         if not timer_finalizado:
+            st.error("Ingresa en if not timer_finalizado:")
             st_autorefresh(interval=3000, limit=10, key="espera_webhook")
             st.info("⏳ Procesando transacción... esperando confirmación del pago.")
 
@@ -436,6 +438,8 @@ if st.session_state.get("transaccion_cancelada"):
 # Refrescar automáticamente la sección de estado si hay una referencia activa
 def refrescar_estado_si_referencia():
     if "ultima_referencia" in st.session_state:
+        st.error("Ingresa en refrescar_estado_si_referencia:")
         st_autorefresh(interval=3000, limit=20, key="refresco_estado_webhook")
+
 
 refrescar_estado_si_referencia()
