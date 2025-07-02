@@ -199,6 +199,18 @@ def mostrar_estado_webhook():
             st.subheader("📊 Resultado del pago:")
             if result and result.lower() in ["aprobada", "approved"]:
                 st.success("✅ ¡Pago aprobado correctamente!")
+                # Botón de nueva transacción SIEMPRE visible
+                if st.button("🧾 Nueva transacción"):
+                    limpiar_archivos_estado()
+                    for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
+                        if clave in st.session_state:
+                            del st.session_state[clave]
+                    for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
+                        if producto in st.session_state:
+                            del st.session_state[producto]
+                    if "propina" in st.session_state:
+                        del st.session_state["propina"]
+                    st.rerun()
                 # Timer solo si no ha finalizado
                 if not st.session_state.get("timer_finalizado"):
                     st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
@@ -412,7 +424,7 @@ if "ultima_referencia" in st.session_state:
             st_autorefresh(interval=3000, limit=10, key="espera_webhook")
             st.info("⏳ Procesando transacción... esperando confirmación del pago.")
 
-# Botón para nueva transacción
+# Botón para nueva transacción (en la parte inferior, fuera de mostrar_estado_webhook)
 if "ultima_referencia" in st.session_state:
     st.divider()
     if st.button("🧾 Nueva transacción"):
@@ -421,8 +433,10 @@ if "ultima_referencia" in st.session_state:
             if clave in st.session_state:
                 del st.session_state[clave]
         for producto in ["Hamburguesa", "Tacos", "Pizza", "Refresco", "Cerveza", "Agua"]:
-            st.session_state[producto] = 0
-        st.session_state["propina"] = 0
+            if producto in st.session_state:
+                del st.session_state[producto]
+        if "propina" in st.session_state:
+            del st.session_state["propina"]
         st.rerun()
 
 if st.session_state.get("transaccion_cancelada"):
