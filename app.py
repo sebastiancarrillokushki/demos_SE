@@ -268,11 +268,59 @@ ingenieros_config = {
         "Juanse": {
             "serial": "TJ54239M21196",
             "api_key": "78197c2d035dc6f8297e8fdfc8ebbabfb8f2ab209ce3ce1d19a283e3786ae975"
+        },
+        "OS": {
+            "serial": "",
+            "api_key": ""
+        },
+        "Jean": {
+            "serial": "",
+            "api_key": ""
+        },
+        "Dei": {
+            "serial": "",
+            "api_key": ""
+        },
+        "Julio": {
+            "serial": "TJ54239M21189",
+            "api_key": ""
+        },
+        "Alvaro": {
+            "serial": "PN32226W40415",
+            "api_key": "cf861f6a175f1dab68b8f7db1a6dd38fc1136b08053164d4d7ff2a5049d3d542"
+        },
+        "Alan": {
+            "serial": "",
+            "api_key": ""
         }
     },
     "Chile": {
         "Juanse": {
             "serial": "TJ71246J20345",
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+        },
+        "OS": {
+            "serial": "",
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+        },
+        "Jean": {
+            "serial": "",
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+        },
+        "Dei": {
+            "serial": "",
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+        },
+        "Julio": {
+            "serial": "TJ71246J20055",
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+        },
+        "Alvaro": {
+            "serial": "TJ71246J20107",
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+        },
+        "Alan": {
+            "serial": "",
             "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
         }
     }
