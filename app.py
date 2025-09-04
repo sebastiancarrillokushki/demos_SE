@@ -290,8 +290,8 @@ ingenieros_config = {
             "api_key": "cf861f6a175f1dab68b8f7db1a6dd38fc1136b08053164d4d7ff2a5049d3d542"
         },
         "Alan": {
-            "serial": "",
-            "api_key": ""
+            "serial": "TJ54239L23255",
+            "api_key": "34082b821b987ccff3d5db525b8a13e1f589aefa8afb5ba1f219751b6d2e113c"
         }
     },
     "Chile": {
