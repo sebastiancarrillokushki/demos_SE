@@ -53,7 +53,6 @@ def construir_payload_mexico(serial, total, reference, propina, show_notificatio
         "showNotification": show_notification,
         "ttl": 60,
         "msi": 0,
-        "deviceToken": "58e9a981",
         "extras": {
             "autoPaymentEnabled": auto_payment_enabled,
             "timerFinishTRX": 10,
