@@ -362,59 +362,71 @@ def mostrar_estado_webhook():
             st.subheader("📦 Webhook recibido (Chile):")
             st.code(json.dumps(estado, indent=2), language="json")
 
-            # 4) Timer de 1 minuto (sin st.rerun para evitar loops)
-            if not st.session_state.get("timer_finalizado"):
-                st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
-                countdown_placeholder = st.empty()
-                for i in range(60, 0, -1):
-                    countdown_placeholder.info(f"⏳ {i} segundos restantes")
-                    time.sleep(1)
-                st.session_state["timer_finalizado"] = True
+            # 4) Determinar resultado normalizado del webhook (Chile usa transaction_status)
+            result = interpretar_estado_webhook(pais, estado)  # -> "approved" | "canceled" | "declined" | ...
 
-            # 5) Botón de devolución (Chile)
-            st.subheader("💸 Solicitud de devolución")
-            if st.session_state.get("timer_finalizado"):
-                if st.button("📤 Solicitar devolución"):
-                    with st.spinner("Enviando solicitud de devolución..."):
-                        payload = {
-                            "amount": {
-                                "currency": "CLP",
-                                "iva": 0,
-                                "subtotal_iva": 0,
-                                "subtotal_iva0": st.session_state.get("monto_total", 0)
-                            },
-                            "transaction_mode": "Void",
-                            "transaction_type": "charge",
-                            "client_transaction_id": st.session_state.get("sequenceNumber"),
-                            "transaction_reference": st.session_state.get("transactionReference"),
-                            "omit_card": True
-                        }
-                        with open("payload_cancelacion.json", "w") as f:
-                            json.dump(payload, f)
+            st.subheader("📊 Resultado del pago:")
+            if result == "approved":
+                st.success("✅ ¡Pago aprobado correctamente!")
+                # 5) Timer de 1 minuto (sin st.rerun para evitar loops)
+                if not st.session_state.get("timer_finalizado"):
+                    st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
+                    countdown_placeholder = st.empty()
+                    for i in range(60, 0, -1):
+                        countdown_placeholder.info(f"⏳ {i} segundos restantes")
+                        time.sleep(1)
+                    st.session_state["timer_finalizado"] = True
 
-                        headers = {
-                            "Private-Credential-Id": st.session_state.get("private_credential_id", ""),
-                            "User-Agent": "PostmanRuntime/7.32.3",     # <— necesario según tu doc
-                            "Content-Type": "application/json"
-                        }
+                # 6) Botón de devolución (solo si hubo aprobación)
+                st.subheader("💸 Solicitud de devolución")
+                if st.session_state.get("timer_finalizado"):
+                    if st.button("📤 Solicitar devolución"):
+                        with st.spinner("Enviando solicitud de devolución..."):
+                            payload = {
+                                "amount": {
+                                    "currency": "CLP",
+                                    "iva": 0,
+                                    "subtotal_iva": 0,
+                                    "subtotal_iva0": st.session_state.get("monto_total", 0)
+                                },
+                                "transaction_mode": "Void",
+                                "transaction_type": "charge",
+                                "client_transaction_id": st.session_state.get("sequenceNumber"),
+                                "transaction_reference": st.session_state.get("transactionReference"),
+                                "omit_card": True
+                            }
+                            with open("payload_cancelacion.json", "w") as f:
+                                json.dump(payload, f)
 
-                        url = "https://api.kushkipagos.com/pos/v1/transaction"
-                        response = requests.post(url, json=payload, headers=headers)
+                            headers = {
+                                "Private-Credential-Id": st.session_state.get("private_credential_id", ""),
+                                "User-Agent": "PostmanRuntime/7.32.3",
+                                "Content-Type": "application/json"
+                            }
 
-                        st.subheader("📦 Payload de devolución enviado")
-                        st.code(json.dumps(payload, indent=2), language="json")
+                            url = "https://api.kushkipagos.com/pos/v1/transaction"
+                            response = requests.post(url, json=payload, headers=headers)
 
-                        st.subheader("📨 Respuesta de la API (devolución)")
-                        try:
-                            st.code(json.dumps(response.json(), indent=2), language="json")
-                        except:
-                            st.write(f"Status: {response.status_code}")
-                            st.write(response.text or "⚠️ Respuesta no es JSON")
+                            st.subheader("📦 Payload de devolución enviado")
+                            st.code(json.dumps(payload, indent=2), language="json")
 
-                        # 6) (Post-refund) volver a mostrar los archivos de estatus
-                        mostrar_archivo_json("📤 Payload API Request Status", "payload_api_request_status.json")
-                        mostrar_archivo_json("📨 Respuesta de la API request Status", "respuesta_api_request_status.json")
-
+                            st.subheader("📨 Respuesta de la API (devolución)")
+                            try:
+                                st.code(json.dumps(response.json(), indent=2), language="json")
+                            except:
+                                st.write(f"Status: {response.status_code}")
+                                st.write(response.text or "⚠️ Respuesta no es JSON")
+                            
+            elif result in ["canceled", "cancelled"]:
+                st.warning("⚠️ Pago cancelado. No se habilita devolución.")
+                return  # no timer, no botón
+            elif result in ["declined", "rechazada"]:
+                st.error("❌ Pago rechazado. No se habilita devolución.")
+                return  # no timer, no botón
+            else:
+                st.info(f"ℹ️ Estado del pago: {result or 'desconocido'}. No se habilita devolución.")
+                return  # no timer, no botón
+                    
 def mostrar_webhook_devolucion():
     devolucion = obtener_devolucion_remota()
     if devolucion:
