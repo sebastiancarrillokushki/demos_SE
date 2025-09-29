@@ -63,6 +63,33 @@ def construir_payload_mexico(serial, total, reference, propina, show_notificatio
         payload["tip"] = propina
     return payload
 
+def interpretar_estado_api(pais, data):
+    """Devuelve un estado normalizado a partir de la respuesta de la API."""
+    if pais == "México":
+        return data.get("status", "").lower()
+    else:  # Chile
+        status = data.get("status", "")
+        if status.lower() == "completed":
+            return "approved"
+        elif status.lower() in ["cancelled", "canceled"]:
+            return "canceled"
+        return status.lower()
+
+def interpretar_estado_webhook(pais, data):
+    """Devuelve un estado normalizado a partir del webhook recibido."""
+    if pais == "México":
+        return (data.get("status") or data.get("result") or "").lower()
+    else:  # Chile
+        trx_status = data.get("transaction_status", "").upper()
+        if trx_status == "APPROVAL":
+            return "approved"
+        elif trx_status in ["CANCELED", "CANCELLED"]:
+            return "canceled"
+        elif trx_status in ["DECLINED", "REJECTED"]:
+            return "declined"
+        return trx_status.lower()
+
+
 def construir_payload_chile(serial, total, reference):
     return {
         "idempotencyKey": reference,
@@ -149,7 +176,7 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
             st.write("📡 Endpoint:", url)
             st.code(json.dumps(data, indent=2), language="json")
 
-            status = data.get("status", "").lower()
+            status = interpretar_estado_api(pais, data)
 
             if pais == "México":
                 # === Lógica México (se queda como estaba) ===
@@ -168,7 +195,7 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
                     st.session_state["transaccion_cancelada"] = True
                     st.rerun()
                 else:
-                    if status in ["approved", "approve"]:
+                    if status in ["approved", "approve","Completed"]:
                         st.rerun()
                     else:
                         st.info("⚠️ No se ha recibido el webhook. ")
@@ -190,7 +217,7 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
                     st.session_state["transaccion_cancelada"] = True
                     st.rerun()
 
-                elif status in ["approved", "aprobada"]:
+                elif status in ["approved", "aprobada", "Completed"]:
                     transaction_ref = data.get("transactionReference")
                     sequence_num = data.get("sequenceNumber")
 
@@ -239,7 +266,7 @@ def mostrar_estado_webhook():
     if pais == "México":
         referencia_esperada = st.session_state.get("ultima_referencia")
         referencia_recibida = estado.get("uniqueReference") if estado else None
-        result = estado.get("result") or estado.get("status")
+        result = interpretar_estado_webhook(pais, estado)
         ref = estado.get("uniqueReference", "[sin referencia]")
 
         if ref == referencia_esperada:
