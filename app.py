@@ -143,30 +143,67 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
 
         try:
             response = requests.get(url, headers=headers)
+            data = response.json()
+
             st.subheader(f"🔎 Verificación #{intentos} - Consulta a la API:")
             st.write("📡 Endpoint:", url)
-            st.code(json.dumps(response.json(), indent=2), language="json")
+            st.code(json.dumps(data, indent=2), language="json")
 
-            status = response.json().get("status", "").lower()
-            if status in ["cancelled", "canceled"]:
-                with open("respuesta_api_get_estatus.json", "w") as f:
-                    try:
-                        json.dump(response.json(), f)
-                    except:
-                        json.dump({"error": "Respuesta no es JSON"}, f)
+            status = data.get("status", "").lower()
 
-                st.warning("⚠️ La transacción fue cancelada por la terminal.")
-                session_keys = list(st.session_state.keys())
-                for key in session_keys:
-                    if key != "transaccion_cancelada":
-                        del st.session_state[key]
-                st.session_state["transaccion_cancelada"] = True
-                st.rerun()
-            else:
-                if status in ["Approved", "Approve"]:
+            if pais == "México":
+                # === Lógica México (se queda como estaba) ===
+                if status in ["cancelled", "canceled"]:
+                    with open("respuesta_api_get_estatus.json", "w") as f:
+                        try:
+                            json.dump(data, f)
+                        except:
+                            json.dump({"error": "Respuesta no es JSON"}, f)
+
+                    st.warning("⚠️ La transacción fue cancelada por la terminal.")
+                    session_keys = list(st.session_state.keys())
+                    for key in session_keys:
+                        if key != "transaccion_cancelada":
+                            del st.session_state[key]
+                    st.session_state["transaccion_cancelada"] = True
                     st.rerun()
                 else:
+                    if status in ["approved", "approve"]:
+                        st.rerun()
+                    else:
+                        st.info("⚠️ No se ha recibido el webhook. ")
+
+            else:
+                # === Lógica Chile (con transactionReference y sequenceNumber) ===
+                if status in ["cancelled", "canceled"]:
+                    with open("respuesta_api_get_estatus.json", "w") as f:
+                        try:
+                            json.dump(data, f)
+                        except:
+                            json.dump({"error": "Respuesta no es JSON"}, f)
+
+                    st.warning("⚠️ La transacción fue cancelada por la terminal.")
+                    session_keys = list(st.session_state.keys())
+                    for key in session_keys:
+                        if key != "transaccion_cancelada":
+                            del st.session_state[key]
+                    st.session_state["transaccion_cancelada"] = True
+                    st.rerun()
+
+                elif status in ["approved", "aprobada"]:
+                    transaction_ref = data.get("transactionReference")
+                    sequence_num = data.get("sequenceNumber")
+
+                    if transaction_ref and sequence_num:
+                        st.session_state["transactionReference"] = transaction_ref
+                        st.session_state["sequenceNumber"] = sequence_num
+                        break  # salimos del while, ya tenemos datos válidos
+                    else:
+                        st.info("ℹ️ Transacción aprobada pero aún no hay transactionReference o sequenceNumber. Reintentando...")
+
+                else:
                     st.info("⚠️ No se ha recibido el webhook. ")
+
         except Exception as e:
             st.error(f"❌ Error consultando el estado: {e}")
 
@@ -192,18 +229,28 @@ def obtener_devolucion_remota():
 
 def mostrar_estado_webhook():
     estado = obtener_estado_remoto()
-    referencia_esperada = st.session_state.get("ultima_referencia")
-    referencia_recibida = estado.get("uniqueReference") if estado else None
-    if estado:
+
+    if not estado:
+        return
+
+    # ==============================
+    # === FLUJO MÉXICO (igual) ===
+    # ==============================
+    if pais == "México":
+        referencia_esperada = st.session_state.get("ultima_referencia")
+        referencia_recibida = estado.get("uniqueReference") if estado else None
         result = estado.get("result") or estado.get("status")
         ref = estado.get("uniqueReference", "[sin referencia]")
+
         if ref == referencia_esperada:
-            # Si el webhook llega por primera vez, forzar recarga para limpiar estado
+            # Si el webhook llega por primera vez, forzar recarga
             if not st.session_state.get("webhook_mostrado"):
                 st.session_state["webhook_mostrado"] = True
                 st.rerun()
+
             st.subheader("📦 Webhook recibido:")
             st.code(json.dumps(estado, indent=2), language="json")
+
             st.subheader("📊 Resultado del pago:")
             if result and result.lower() in ["aprobada", "approved"]:
                 st.success("✅ ¡Pago aprobado correctamente!")
@@ -222,8 +269,9 @@ def mostrar_estado_webhook():
                 st.warning("⚠️ El cliente canceló el pago.")
             else:
                 st.info(f"ℹ️ Estado del pago: {result or 'desconocido'}")
+
+            # === Botón de devolución México ===
             st.subheader("💸 Solicitud de devolución")
-            # Botón solo si el timer terminó (NO antes)
             if st.session_state.get("timer_finalizado"):
                 if st.button("📤 Solicitar devolución"):
                     with st.spinner("Enviando solicitud de devolución..."):
@@ -236,10 +284,67 @@ def mostrar_estado_webhook():
                         }
                         url = "https://kushkicollect.billpocket.dev/refund"
                         response = requests.post(url, json=payload, headers=headers)
+
                         st.subheader("📦 Payload de devolución enviado")
                         st.code(json.dumps(payload, indent=2), language="json")
                         st.subheader("📨 Respuesta de la API")
+                        try:
+                            st.code(json.dumps(response.json(), indent=2), language="json")
+                        except:
+                            st.write("⚠️ Respuesta no es JSON")
+
+    # ==============================
+    # === FLUJO CHILE (simplificado) ===
+    # ==============================
+    else:
+        # Mostrar webhook sin validaciones
+        st.subheader("📦 Webhook recibido (Chile):")
+        st.code(json.dumps(estado, indent=2), language="json")
+
+        # Inicia timer de 1 minuto directo
+        if not st.session_state.get("timer_finalizado"):
+            st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
+            countdown_placeholder = st.empty()
+            for i in range(60, 0, -1):
+                countdown_placeholder.info(f"⏳ {i} segundos restantes")
+                time.sleep(1)
+            st.session_state["timer_finalizado"] = True
+            st.rerun()
+
+        # === Botón de devolución Chile ===
+        st.subheader("💸 Solicitud de devolución")
+        if st.session_state.get("timer_finalizado"):
+            if st.button("📤 Solicitar devolución"):
+                with st.spinner("Enviando solicitud de devolución..."):
+                    payload = {
+                        "amount": {
+                            "currency": "CLP",
+                            "iva": 0,
+                            "subtotal_iva": 0,
+                            "subtotal_iva0": st.session_state.get("monto_total", 0)
+                        },
+                        "transaction_mode": "Void",
+                        "transaction_type": "charge",
+                        "client_transaction_id": st.session_state.get("sequenceNumber"),
+                        "transaction_reference": st.session_state.get("transactionReference"),
+                        "omit_card": True
+                    }
+                    with open("payload_cancelacion.json", "w") as f:
+                        json.dump(payload, f)
+                    headers = {
+                        "Private-Credential-Id": "69f43a580b10406283d73c3622a7f497",
+                        "Content-Type": "application/json"
+                    }
+                    url = "https://api.kushkipagos.com/pos/v1/transaction"
+                    response = requests.post(url, json=payload, headers=headers)
+
+                    st.subheader("📦 Payload de devolución enviado")
+                    st.code(json.dumps(payload, indent=2), language="json")
+                    st.subheader("📨 Respuesta de la API")
+                    try:
                         st.code(json.dumps(response.json(), indent=2), language="json")
+                    except:
+                        st.write("⚠️ Respuesta no es JSON")
 
 def mostrar_webhook_devolucion():
     devolucion = obtener_devolucion_remota()
@@ -296,31 +401,38 @@ ingenieros_config = {
     "Chile": {
         "Juanse": {
             "serial": "TJ71246J20345",
-            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH",
+            "private_credential_id": "69f43a580b10406283d73c3622a7f497"
         },
         "OS": {
             "serial": "",
-            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH",
+            "private_credential_id": "69f43a580b10406283d73c3622a7f497"
         },
         "Jean": {
             "serial": "",
-            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH",
+            "private_credential_id": "69f43a580b10406283d73c3622a7f497"
         },
         "Dei": {
             "serial": "",
-            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH",
+            "private_credential_id": "69f43a580b10406283d73c3622a7f497"
         },
         "Julio": {
             "serial": "TJ71246J20055",
-            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH",
+            "private_credential_id": "69f43a580b10406283d73c3622a7f497"
         },
         "Alvaro": {
             "serial": "TJ71246J20107",
-            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH",
+            "private_credential_id": "69f43a580b10406283d73c3622a7f497"
         },
         "Alan": {
             "serial": "",
-            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH"
+            "api_key": "IGdVHHeImV0CK3LTIaSDVVvK3EjuDSkNODagTWAsfMETq4fK5h28JszFQbu3324wUL9xT8VOyJdvw5LYQYtyjWUKftcKriDMqXyYYDK5WAeNCnMJPOZavPwrK6oagH",
+            "private_credential_id": "69f43a580b10406283d73c3622a7f497"
         }
     }
 }
