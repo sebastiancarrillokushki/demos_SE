@@ -401,7 +401,7 @@ ingenieros_config = {
         },
         "Alvaro": {
             "serial": "PN32226W40415",
-            "api_key": "cf861f6a175f1dab68b8f7db1a6dd38fc1136b08053164d4d7ff2a5049d3d542"
+            "api_key": "cf861f6a175f1dab68b8f7db1a6dd38fc1136b08053164d4d7ff2a5049d3d542",
             "private_credential_id": ""
         },
         "Alan": {
