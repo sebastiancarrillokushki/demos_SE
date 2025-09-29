@@ -376,31 +376,38 @@ ingenieros_config = {
     "México": {
         "Juanse": {
             "serial": "TJ54239M21196",
-            "api_key": "78197c2d035dc6f8297e8fdfc8ebbabfb8f2ab209ce3ce1d19a283e3786ae975"
+            "api_key": "78197c2d035dc6f8297e8fdfc8ebbabfb8f2ab209ce3ce1d19a283e3786ae975",
+            "private_credential_id": ""
         },
         "OS": {
             "serial": "",
-            "api_key": ""
+            "api_key": "",
+            "private_credential_id": ""
         },
         "Jean": {
             "serial": "",
-            "api_key": ""
+            "api_key": "",
+            "private_credential_id": ""
         },
         "Dei": {
             "serial": "",
-            "api_key": ""
+            "api_key": "",
+            "private_credential_id": ""
         },
         "Julio": {
             "serial": "TJ54239M21189",
-            "api_key": ""
+            "api_key": "",
+            "private_credential_id": ""
         },
         "Alvaro": {
             "serial": "PN32226W40415",
             "api_key": "cf861f6a175f1dab68b8f7db1a6dd38fc1136b08053164d4d7ff2a5049d3d542"
+            "private_credential_id": ""
         },
         "Alan": {
             "serial": "TJ54239L23255",
-            "api_key": "34082b821b987ccff3d5db525b8a13e1f589aefa8afb5ba1f219751b6d2e113c"
+            "api_key": "34082b821b987ccff3d5db525b8a13e1f589aefa8afb5ba1f219751b6d2e113c",
+            "private_credential_id": ""
         }
     },
     "Chile": {
@@ -449,7 +456,7 @@ if pais != "Seleccionar...":
         config = ingenieros_config[pais][ingeniero]
         serial_number = config["serial"]
         api_key = config["api_key"]
-        private_credential_id = config("private_credential_id", "")
+        private_credential_id = config["private_credential_id"]
 
         simbolo_moneda = "MXN" if pais == "México" else "CLP"
 
