@@ -357,7 +357,7 @@ def mostrar_estado_webhook():
                     countdown_placeholder.info(f"⏳ {i} segundos restantes")
                     time.sleep(1)
                 st.session_state["timer_finalizado"] = True
-                st.rerun()
+                
 
             # === Botón de devolución Chile ===
             st.subheader("💸 Solicitud de devolución")
