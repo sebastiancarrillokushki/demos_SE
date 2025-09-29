@@ -149,23 +149,27 @@ def resetear_productos():
 def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
     intentos = 0
     while intentos < 10:
-        # --- NUEVO: Verificar si el webhook ya llegó consultando el endpoint remoto ---
-
+        # --- 1) ¿Ya llegó el webhook? ---
         estado_remoto = obtener_estado_remoto()
 
         if pais == "México":
             if estado_remoto and estado_remoto.get("uniqueReference") == referencia:
                 return
-        else:  # Chile
+        else:  # Chile: validar por metadata.idempotencyKey
             idempotency_key = None
             if estado_remoto and "metadata" in estado_remoto:
                 idempotency_key = estado_remoto["metadata"].get("idempotencyKey")
             if idempotency_key == referencia:
-                return
+                # Refresca UNA sola vez para limpiar verificaciones y mostrar todo en orden
+                if not st.session_state.get("webhook_refresco_hecho"):
+                    st.session_state["webhook_refresco_hecho"] = True
+                    st.rerun()
+                return  # cortar polling
 
         time.sleep(30)
         intentos += 1
 
+        # --- 2) Construir URL y headers por país ---
         if pais == "México":
             url = f"https://kushkicollect.billpocket.dev/get-status/?uniqueReference={referencia}"
             headers = {"X-BP-AUTH": api_key}
@@ -177,9 +181,26 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
             }
 
         try:
+            # --- 3) Guardar SIEMPRE el último request de estatus (aunque sea GET) ---
+            payload_verificacion = {
+                "method": "GET",
+                "url": url,
+                "headers": headers
+            }
+            with open("payload_api_request_status.json", "w") as f:
+                json.dump(payload_verificacion, f)
+
+            # --- 4) Hacer request y guardar la respuesta ---
             response = requests.get(url, headers=headers)
             data = response.json()
 
+            with open("respuesta_api_request_status.json", "w") as f:
+                try:
+                    json.dump(data, f)
+                except:
+                    json.dump({"error": "Respuesta no es JSON"}, f)
+
+            # --- 5) Mostrar verificación en la UI mientras no llega el webhook ---
             st.subheader(f"🔎 Verificación #{intentos} - Consulta a la API:")
             st.write("📡 Endpoint:", url)
             st.code(json.dumps(data, indent=2), language="json")
@@ -187,14 +208,12 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
             status = interpretar_estado_api(pais, data)
 
             if pais == "México":
-                # === Lógica México (se queda como estaba) ===
                 if status in ["cancelled", "canceled"]:
                     with open("respuesta_api_get_estatus.json", "w") as f:
                         try:
                             json.dump(data, f)
                         except:
                             json.dump({"error": "Respuesta no es JSON"}, f)
-
                     st.warning("⚠️ La transacción fue cancelada por la terminal.")
                     session_keys = list(st.session_state.keys())
                     for key in session_keys:
@@ -203,20 +222,19 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
                     st.session_state["transaccion_cancelada"] = True
                     st.rerun()
                 else:
-                    if status in ["approved", "approve","Completed"]:
+                    if status in ["approved", "approve", "completed"]:
                         st.rerun()
                     else:
                         st.info("⚠️ No se ha recibido el webhook. ")
 
             else:
-                # === Lógica Chile (con transactionReference y sequenceNumber) ===
+                # Chile: si la API ya marca aprobada, guardamos refs y seguimos esperando webhook
                 if status in ["cancelled", "canceled"]:
                     with open("respuesta_api_get_estatus.json", "w") as f:
                         try:
                             json.dump(data, f)
                         except:
                             json.dump({"error": "Respuesta no es JSON"}, f)
-
                     st.warning("⚠️ La transacción fue cancelada por la terminal.")
                     session_keys = list(st.session_state.keys())
                     for key in session_keys:
@@ -225,17 +243,13 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
                     st.session_state["transaccion_cancelada"] = True
                     st.rerun()
 
-                elif status in ["approved", "aprobada", "Completed"]:
+                elif status in ["approved", "aprobada", "completed"]:
                     transaction_ref = data.get("transactionReference")
                     sequence_num = data.get("sequenceNumber")
-
                     if transaction_ref and sequence_num:
                         st.session_state["transactionReference"] = transaction_ref
                         st.session_state["sequenceNumber"] = sequence_num
-                        break  # salimos del while, ya tenemos datos válidos
-                    else:
-                        st.info("ℹ️ Transacción aprobada pero aún no hay transactionReference o sequenceNumber. Reintentando...")
-
+                        # No cortamos: esperamos al webhook para refrescar y mostrar todo
                 else:
                     st.info("⚠️ No se ha recibido el webhook. ")
 
@@ -267,11 +281,6 @@ def mostrar_estado_webhook():
 
     if not estado:
         return
-
-    # Limpieza de pantalla al recibir webhook
-    for clave in ["pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
-        if clave in st.session_state:
-            del st.session_state[clave]
 
     # ==============================
     # === FLUJO MÉXICO (igual) ===
@@ -343,13 +352,17 @@ def mostrar_estado_webhook():
             idempotency_key = estado["metadata"].get("idempotencyKey")
 
         if idempotency_key == referencia_esperada:
+            # 1) Mantener visibles: Payload enviado y Respuesta de la API (venta) — ya se pintan arriba
+
+            # 2) Mostrar el ÚLTIMO request/response del polling de estatus
+            mostrar_archivo_json("📤 Payload API Request Status", "payload_api_request_status.json")
+            mostrar_archivo_json("📨 Respuesta de la API request Status", "respuesta_api_request_status.json")
+
+            # 3) Mostrar el Webhook recibido
             st.subheader("📦 Webhook recibido (Chile):")
             st.code(json.dumps(estado, indent=2), language="json")
 
-            # Guardar monto total para Chile
-            st.session_state["monto_total"] = st.session_state.get("monto_total", 0)
-
-            # Inicia timer de 1 minuto directo
+            # 4) Timer de 1 minuto (sin st.rerun para evitar loops)
             if not st.session_state.get("timer_finalizado"):
                 st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
                 countdown_placeholder = st.empty()
@@ -357,9 +370,8 @@ def mostrar_estado_webhook():
                     countdown_placeholder.info(f"⏳ {i} segundos restantes")
                     time.sleep(1)
                 st.session_state["timer_finalizado"] = True
-                
 
-            # === Botón de devolución Chile ===
+            # 5) Botón de devolución (Chile)
             st.subheader("💸 Solicitud de devolución")
             if st.session_state.get("timer_finalizado"):
                 if st.button("📤 Solicitar devolución"):
@@ -379,20 +391,29 @@ def mostrar_estado_webhook():
                         }
                         with open("payload_cancelacion.json", "w") as f:
                             json.dump(payload, f)
+
                         headers = {
                             "Private-Credential-Id": st.session_state.get("private_credential_id", ""),
+                            "User-Agent": "PostmanRuntime/7.32.3",     # <— necesario según tu doc
                             "Content-Type": "application/json"
                         }
+
                         url = "https://api.kushkipagos.com/pos/v1/transaction"
                         response = requests.post(url, json=payload, headers=headers)
 
                         st.subheader("📦 Payload de devolución enviado")
                         st.code(json.dumps(payload, indent=2), language="json")
-                        st.subheader("📨 Respuesta de la API")
+
+                        st.subheader("📨 Respuesta de la API (devolución)")
                         try:
                             st.code(json.dumps(response.json(), indent=2), language="json")
                         except:
-                            st.write("⚠️ Respuesta no es JSON")
+                            st.write(f"Status: {response.status_code}")
+                            st.write(response.text or "⚠️ Respuesta no es JSON")
+
+                        # 6) (Post-refund) volver a mostrar los archivos de estatus
+                        mostrar_archivo_json("📤 Payload API Request Status", "payload_api_request_status.json")
+                        mostrar_archivo_json("📨 Respuesta de la API request Status", "respuesta_api_request_status.json")
 
 def mostrar_webhook_devolucion():
     devolucion = obtener_devolucion_remota()
@@ -500,6 +521,7 @@ if pais != "Seleccionar...":
         serial_number = config["serial"]
         api_key = config["api_key"]
         private_credential_id = config["private_credential_id"]
+        st.session_state["private_credential_id"] = private_credential_id
 
         simbolo_moneda = "MXN" if pais == "México" else "CLP"
 
@@ -654,7 +676,7 @@ if "ultima_referencia" in st.session_state:
     st.divider()
     if st.button("🧾 Nueva transacción"):
         limpiar_archivos_estado()
-        for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
+        for clave in ["ultima_referencia", "temporizador_mostrado", "pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado", "webhook_refresco_hecho","public_credential_id", "private_credential_id","transactionReference", "sequenceNumber", "monto_total"]:
             if clave in st.session_state:
                 del st.session_state[clave]
         # Limpiar productos y propina sin modificar directamente
