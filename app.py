@@ -294,57 +294,62 @@ def mostrar_estado_webhook():
                             st.write("⚠️ Respuesta no es JSON")
 
     # ==============================
-    # === FLUJO CHILE (simplificado) ===
+    # === FLUJO CHILE ===
     # ==============================
     else:
-        # Mostrar webhook sin validaciones
-        st.subheader("📦 Webhook recibido (Chile):")
-        st.code(json.dumps(estado, indent=2), language="json")
+        referencia_esperada = st.session_state.get("ultima_referencia")
+        idempotency_key = None
+        if "metadata" in estado:
+            idempotency_key = estado["metadata"].get("idempotencyKey")
 
-        # Inicia timer de 1 minuto directo
-        if not st.session_state.get("timer_finalizado"):
-            st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
-            countdown_placeholder = st.empty()
-            for i in range(60, 0, -1):
-                countdown_placeholder.info(f"⏳ {i} segundos restantes")
-                time.sleep(1)
-            st.session_state["timer_finalizado"] = True
-            st.rerun()
+        if idempotency_key == referencia_esperada:
+            st.subheader("📦 Webhook recibido (Chile):")
+            st.code(json.dumps(estado, indent=2), language="json")
 
-        # === Botón de devolución Chile ===
-        st.subheader("💸 Solicitud de devolución")
-        if st.session_state.get("timer_finalizado"):
-            if st.button("📤 Solicitar devolución"):
-                with st.spinner("Enviando solicitud de devolución..."):
-                    payload = {
-                        "amount": {
-                            "currency": "CLP",
-                            "iva": 0,
-                            "subtotal_iva": 0,
-                            "subtotal_iva0": st.session_state.get("monto_total", 0)
-                        },
-                        "transaction_mode": "Void",
-                        "transaction_type": "charge",
-                        "client_transaction_id": st.session_state.get("sequenceNumber"),
-                        "transaction_reference": st.session_state.get("transactionReference"),
-                        "omit_card": True
-                    }
-                    with open("payload_cancelacion.json", "w") as f:
-                        json.dump(payload, f)
-                    headers = {
-                        "Private-Credential-Id": "69f43a580b10406283d73c3622a7f497",
-                        "Content-Type": "application/json"
-                    }
-                    url = "https://api.kushkipagos.com/pos/v1/transaction"
-                    response = requests.post(url, json=payload, headers=headers)
+            # Inicia timer de 1 minuto directo
+            if not st.session_state.get("timer_finalizado"):
+                st.info("⏱️ Tiempo restante para completar la acción: 1 minuto")
+                countdown_placeholder = st.empty()
+                for i in range(60, 0, -1):
+                    countdown_placeholder.info(f"⏳ {i} segundos restantes")
+                    time.sleep(1)
+                st.session_state["timer_finalizado"] = True
+                st.rerun()
 
-                    st.subheader("📦 Payload de devolución enviado")
-                    st.code(json.dumps(payload, indent=2), language="json")
-                    st.subheader("📨 Respuesta de la API")
-                    try:
-                        st.code(json.dumps(response.json(), indent=2), language="json")
-                    except:
-                        st.write("⚠️ Respuesta no es JSON")
+            # === Botón de devolución Chile ===
+            st.subheader("💸 Solicitud de devolución")
+            if st.session_state.get("timer_finalizado"):
+                if st.button("📤 Solicitar devolución"):
+                    with st.spinner("Enviando solicitud de devolución..."):
+                        payload = {
+                            "amount": {
+                                "currency": "CLP",
+                                "iva": 0,
+                                "subtotal_iva": 0,
+                                "subtotal_iva0": st.session_state.get("monto_total", 0)
+                            },
+                            "transaction_mode": "Void",
+                            "transaction_type": "charge",
+                            "client_transaction_id": st.session_state.get("sequenceNumber"),
+                            "transaction_reference": st.session_state.get("transactionReference"),
+                            "omit_card": True
+                        }
+                        with open("payload_cancelacion.json", "w") as f:
+                            json.dump(payload, f)
+                        headers = {
+                            "Private-Credential-Id": st.session_state.get("private_credential_id", ""),
+                            "Content-Type": "application/json"
+                        }
+                        url = "https://api.kushkipagos.com/pos/v1/transaction"
+                        response = requests.post(url, json=payload, headers=headers)
+
+                        st.subheader("📦 Payload de devolución enviado")
+                        st.code(json.dumps(payload, indent=2), language="json")
+                        st.subheader("📨 Respuesta de la API")
+                        try:
+                            st.code(json.dumps(response.json(), indent=2), language="json")
+                        except:
+                            st.write("⚠️ Respuesta no es JSON")
 
 def mostrar_webhook_devolucion():
     devolucion = obtener_devolucion_remota()
@@ -444,6 +449,8 @@ if pais != "Seleccionar...":
         config = ingenieros_config[pais][ingeniero]
         serial_number = config["serial"]
         api_key = config["api_key"]
+        private_credential_id = config("private_credential_id", "")
+
         simbolo_moneda = "MXN" if pais == "México" else "CLP"
 
         st.success(f"✅ Operando en {pais} con {ingeniero}")
@@ -572,8 +579,16 @@ if "ultima_referencia" in st.session_state:
     verificar_estado_api_si_no_llega_webhook(pais, st.session_state["ultima_referencia"], api_key)
 
     estado = obtener_estado_remoto()
-    webhook_recibido = estado and estado.get("uniqueReference") == st.session_state.get("ultima_referencia")
     timer_finalizado = st.session_state.get("timer_finalizado")
+
+    if pais == "México":
+        webhook_recibido = estado and estado.get("uniqueReference") == st.session_state.get("ultima_referencia")
+    else:  # Chile
+        idempotency_key = None
+        if estado and "metadata" in estado:
+            idempotency_key = estado["metadata"].get("idempotencyKey")
+        webhook_recibido = idempotency_key == st.session_state.get("ultima_referencia")
+
     if webhook_recibido:
         mostrar_estado_webhook()
         mostrar_webhook_devolucion()
@@ -581,6 +596,7 @@ if "ultima_referencia" in st.session_state:
         if not timer_finalizado:
             st_autorefresh(interval=3000, limit=10, key="espera_webhook")
             st.info("⏳ Procesando transacción... esperando confirmación del pago.")
+
 
 # Botón para nueva transacción (en la parte inferior, fuera de mostrar_estado_webhook)
 if "ultima_referencia" in st.session_state:
