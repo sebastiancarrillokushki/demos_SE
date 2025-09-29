@@ -150,10 +150,18 @@ def verificar_estado_api_si_no_llega_webhook(pais, referencia, api_key):
     intentos = 0
     while intentos < 10:
         # --- NUEVO: Verificar si el webhook ya llegó consultando el endpoint remoto ---
+
         estado_remoto = obtener_estado_remoto()
-        if estado_remoto and estado_remoto.get("uniqueReference") == referencia:
-            # Webhook llegó, se rompe el ciclo
-            return
+
+        if pais == "México":
+            if estado_remoto and estado_remoto.get("uniqueReference") == referencia:
+                return
+        else:  # Chile
+            idempotency_key = None
+            if estado_remoto and "metadata" in estado_remoto:
+                idempotency_key = estado_remoto["metadata"].get("idempotencyKey")
+            if idempotency_key == referencia:
+                return
 
         time.sleep(30)
         intentos += 1
@@ -260,6 +268,11 @@ def mostrar_estado_webhook():
     if not estado:
         return
 
+    # Limpieza de pantalla al recibir webhook
+    for clave in ["pago_enviado", "api_key", "webhook_mostrado", "timer_finalizado"]:
+        if clave in st.session_state:
+            del st.session_state[clave]
+
     # ==============================
     # === FLUJO MÉXICO (igual) ===
     # ==============================
@@ -332,6 +345,9 @@ def mostrar_estado_webhook():
         if idempotency_key == referencia_esperada:
             st.subheader("📦 Webhook recibido (Chile):")
             st.code(json.dumps(estado, indent=2), language="json")
+
+            # Guardar monto total para Chile
+            st.session_state["monto_total"] = st.session_state.get("monto_total", 0)
 
             # Inicia timer de 1 minuto directo
             if not st.session_state.get("timer_finalizado"):
@@ -580,6 +596,7 @@ if pais != "Seleccionar...":
             if propina > 0:
                 st.write(f"Propina: {propina} {simbolo_moneda}")
             st.write(f"**Total a pagar: {total + propina} {simbolo_moneda}**")
+            st.session_state["monto_total"] = total + propina  # Guardar para Chile
 
             inicializar_estado()
 
