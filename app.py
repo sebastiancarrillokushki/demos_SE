@@ -481,7 +481,7 @@ ingenieros_config = {
             "private_credential_id": ""
         },
         "Alan": {
-            "serial": "TJ54239L23255",
+            "serial": "TJ72246G20893",
             "api_key": "34082b821b987ccff3d5db525b8a13e1f589aefa8afb5ba1f219751b6d2e113c",
             "private_credential_id": ""
         }
